@@ -1,0 +1,14 @@
+{
+  "name": "node-web-scrape",
+  "version": "0.0.1",
+  "description": "Scrape le web.",
+  "main": "server.js",
+  "author": "Christoph Wedenig",
+  "dependencies": {
+    "cheerio": "latest",
+    "express": "latest",
+    "mongodb": "^3.1.1",
+    "request": "latest",
+    "rss-parser": "3.4.2"
+  }
+}
