@@ -1,6 +1,7 @@
 let Parser = require('rss-parser');
 const { createLogger, format, transports } = require('winston');
 const { combine, timestamp, label, printf } = format;
+const f = require('util').format;
 let parser = new Parser();
 
 const myFormat = printf(info => {
@@ -22,7 +23,11 @@ const logger = createLogger({
 var url = "https://www.5min.at/feed/";
 
 var MongoClient = require('mongodb').MongoClient;
-var dburl = "mongodb://localhost:27017/";
+const user = encodeURIComponent('miner');
+const password = encodeURIComponent(process.env.MINERDBPW);
+const authMechanism = encodeURIComponent('SCRAM-SHA-1');
+
+var dburl = f("mongodb://%s:%s@wedenig.org:27017/?authMechanism=%s&authSource=mydb", user, password, authMechanism);
 
 readLatestData();
 setInterval(readLatestData, 15*60*1000);
@@ -32,7 +37,7 @@ logger.log({
     message: "Started 5min Miner. "
 });
 
-// runs every 5mins and runs on init.
+// runs every 15mins and runs on init.
 function readLatestData() {
     MongoClient.connect(dburl, { useNewUrlParser: true }, function(err, db) {
         if (err) throw err;
