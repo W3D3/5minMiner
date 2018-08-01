@@ -1,46 +1,87 @@
 let Parser = require('rss-parser');
+const { createLogger, format, transports } = require('winston');
+const { combine, timestamp, label, printf } = format;
 let parser = new Parser();
+
+const myFormat = printf(info => {
+    return `[${info.timestamp}] ${info.level}: ${info.message}`;
+});
+
+const logger = createLogger({
+    format: combine(
+        timestamp(),
+        myFormat
+    ),
+    transports: [
+      new transports.Console(),
+      new transports.File({ filename: 'combined.log' })
+    ],
+    exitOnError: false
+  });
 
 var url = "https://www.5min.at/feed/";
 
 var MongoClient = require('mongodb').MongoClient;
 var dburl = "mongodb://localhost:27017/";
 
-MongoClient.connect(dburl, function(err, db) {
-    if (err) throw err;
+readLatestData();
+setInterval(readLatestData, 15*60*1000);
 
-    var dbo = db.db("mydb");
-
-    readLatestData(db);
-    setInterval(readLatestData, 60*5*1000);
+logger.log({
+    level: 'info',
+    message: "Started 5min Miner. "
 });
 
-function readLatestData(db) {
-    var dbo = db.db("mydb");
-    // runs every 60 sec and runs on init.
-    (async () => {
+// runs every 5mins and runs on init.
+function readLatestData() {
+    MongoClient.connect(dburl, { useNewUrlParser: true }, function(err, db) {
+        if (err) throw err;
     
-        let feed = await parser.parseURL(url);
-        console.log(feed.title);
+        var dbo = db.db("mydb");
     
-        feed.items.forEach(item => {
-            item._id = item.guid;
-            try {
-                dbo.collection("5min").insertOne(item, function(err, res) {
-                    if (err) {
-                        if(err.code == 11000) console.log("dupe.");
-                        else console.log(err)
-                    }
-                    else { 
-                        console.log(item.title + ' inserted');
-                    }
-                    db.close();
-                });
-            } catch(err) {
-                console.log("Error saving / " + err)
-            }
-            
-        });
-    
-    })();
+        (async () => {
+        
+            let feed = await parser.parseURL(url);
+
+            logger.log({
+                level: 'info',
+                message: "Fetching information from : " + feed.title
+            });
+        
+            feed.items.forEach(item => {
+                item._id = item.guid;
+                try {
+                    dbo.collection("5min").insertOne(item, function(err, res) {
+                        if (err) {
+                            if(err.code == 11000) {
+                                // duplicate entry, don't care
+                                //TODO log somewhere maybe?
+                            } else {
+                                logger.log({
+                                    level: 'error',
+                                    message: "Error saving article \n " + JSON.stringify(err)
+                                });
+                            }
+                        }
+                        else { 
+                            logger.log({
+                                level: 'info',
+                                message: "Inserted: " + item.title
+                            });
+
+                        }
+                        db.close();
+                    });
+                } catch(err) {
+                    logger.log({
+                        level: 'error',
+                        message: "Error saving article \n " + JSON.stringify(err)
+                    });
+                }
+                
+            });
+        
+        })();
+        
+    });
 }
